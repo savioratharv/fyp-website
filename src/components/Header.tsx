@@ -28,8 +28,8 @@ const Header: React.FC<HeaderProps> = ({ className }) => {
             </svg>
           </div>
           <div>
-            <h1 className="text-xl font-semibold">CodeScribe</h1>
-            <p className="text-xs text-gray-300">Automated Documentation Generator</p>
+            <h1 className="text-xl font-semibold">Euler</h1>
+            <p className="text-xs text-gray-300">Intelligent Code Documentation</p>
           </div>
         </div>
         <nav>

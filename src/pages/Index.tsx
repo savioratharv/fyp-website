@@ -1,142 +1,9 @@
-
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Header from '../components/Header';
 import FileUpload from '../components/FileUpload';
 import DependencyGraph from '../components/DependencyGraph';
 import ConsoleLog from '../components/ConsoleLog';
 import { useToast } from '../components/ui/use-toast';
-
-// Sample HTML for dependency graph visualization
-const sampleGraphHtml = `
-<!DOCTYPE html>
-<html>
-<head>
-  <title>Code Dependency Graph</title>
-  <style>
-    body { margin: 0; padding: 0; font-family: system-ui, sans-serif; }
-    #graph { width: 100%; height: 100vh; background-color: #f8f9fa; }
-    .node { fill: #0d9488; }
-    .node:hover { fill: #f97316; }
-    .link { stroke: #1a365d; stroke-opacity: 0.6; stroke-width: 1.5px; }
-    .label { font-size: 12px; fill: #333; pointer-events: none; }
-  </style>
-  <script src="https://d3js.org/d3.v7.min.js"></script>
-</head>
-<body>
-  <div id="graph"></div>
-  <script>
-    // This would be replaced with actual dependency data from your Python backend
-    const data = {
-      nodes: [
-        { id: "main.py", group: 1 },
-        { id: "utils.py", group: 1 },
-        { id: "database.py", group: 2 },
-        { id: "models.py", group: 2 },
-        { id: "api.py", group: 3 },
-        { id: "config.py", group: 1 },
-        { id: "auth.py", group: 3 }
-      ],
-      links: [
-        { source: "main.py", target: "utils.py", value: 2 },
-        { source: "main.py", target: "database.py", value: 2 },
-        { source: "main.py", target: "api.py", value: 1 },
-        { source: "database.py", target: "models.py", value: 3 },
-        { source: "api.py", target: "models.py", value: 2 },
-        { source: "api.py", target: "auth.py", value: 2 },
-        { source: "main.py", target: "config.py", value: 1 }
-      ]
-    };
-
-    // Create force simulation
-    const width = window.innerWidth;
-    const height = window.innerHeight;
-    
-    const svg = d3.select("#graph")
-      .append("svg")
-      .attr("width", "100%")
-      .attr("height", "100%")
-      .attr("viewBox", [0, 0, width, height])
-      .attr("style", "max-width: 100%; max-height: 100%;");
-
-    const simulation = d3.forceSimulation(data.nodes)
-      .force("link", d3.forceLink(data.links).id(d => d.id).distance(100))
-      .force("charge", d3.forceManyBody().strength(-400))
-      .force("center", d3.forceCenter(width / 2, height / 2));
-
-    // Create links
-    const link = svg.append("g")
-      .selectAll("line")
-      .data(data.links)
-      .join("line")
-      .attr("class", "link")
-      .attr("stroke-width", d => Math.sqrt(d.value));
-
-    // Create nodes
-    const node = svg.append("g")
-      .selectAll("circle")
-      .data(data.nodes)
-      .join("circle")
-      .attr("class", "node")
-      .attr("r", 8)
-      .call(drag(simulation));
-
-    // Add labels to nodes
-    const label = svg.append("g")
-      .selectAll("text")
-      .data(data.nodes)
-      .join("text")
-      .attr("class", "label")
-      .attr("dy", "0.35em")
-      .attr("text-anchor", "middle")
-      .attr("x", d => d.x)
-      .attr("y", d => d.y + 20)
-      .text(d => d.id);
-
-    // Update positions on simulation tick
-    simulation.on("tick", () => {
-      link
-        .attr("x1", d => d.source.x)
-        .attr("y1", d => d.source.y)
-        .attr("x2", d => d.target.x)
-        .attr("y2", d => d.target.y);
-
-      node
-        .attr("cx", d => d.x)
-        .attr("cy", d => d.y);
-
-      label
-        .attr("x", d => d.x)
-        .attr("y", d => d.y + 20);
-    });
-
-    // Enable dragging of nodes
-    function drag(simulation) {
-      function dragstarted(event) {
-        if (!event.active) simulation.alphaTarget(0.3).restart();
-        event.subject.fx = event.subject.x;
-        event.subject.fy = event.subject.y;
-      }
-      
-      function dragged(event) {
-        event.subject.fx = event.x;
-        event.subject.fy = event.y;
-      }
-      
-      function dragended(event) {
-        if (!event.active) simulation.alphaTarget(0);
-        event.subject.fx = null;
-        event.subject.fy = null;
-      }
-      
-      return d3.drag()
-        .on("start", dragstarted)
-        .on("drag", dragged)
-        .on("end", dragended);
-    }
-  </script>
-</body>
-</html>
-`;
 
 const Index: React.FC = () => {
   const { toast } = useToast();
@@ -144,55 +11,62 @@ const Index: React.FC = () => {
   const [consoleOpen, setConsoleOpen] = useState(false);
   const [logs, setLogs] = useState<string[]>([]);
   const [graphHtml, setGraphHtml] = useState<string | undefined>(undefined);
+  const logsInterval = useRef<number | null>(null);
+  const graphInterval = useRef<number | null>(null);
 
   // Function to handle file upload
-  const handleFileUpload = (file: File, email: string) => {
+  const handleFileUpload = async (file: File, email: string) => {
     setIsProcessing(true);
     setConsoleOpen(true);
     setLogs([]);
     setGraphHtml(undefined);
-
-    // Simulate adding logs over time
-    const logMessages = [
-      "Starting code documentation process...",
-      "Extracting ZIP file contents...",
-      "Scanning Python files...",
-      "Building dependency graph...",
-      "Analyzing import statements...",
-      "Generating code structure map...",
-      "Processing module: core.py",
-      "Processing module: utils.py",
-      "Processing module: models.py",
-      "Processing module: database.py",
-      "Processing module: api.py",
-      "INFO: Found 5 Python modules with 12 interdependencies",
-      "Generating HTML visualization...",
-      "Documentation process completed",
-      `Sending results to ${email}...`,
-      "Email sent successfully! Check your inbox shortly."
-    ];
-
-    // Add logs with delays
-    let i = 0;
-    const intervalId = setInterval(() => {
-      if (i < logMessages.length) {
-        setLogs(prev => [...prev, logMessages[i]]);
-        i++;
-
-        // Show the graph after a few logs
-        if (i === 7) {
-          setGraphHtml(sampleGraphHtml);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('email', email);
+      await fetch('/api/upload', { method: 'POST', body: formData });
+      // Start polling logs
+      const fetchLogs = async () => {
+        try {
+          const res = await fetch('/api/logs');
+          if (!res.ok) return;  // skip if server error
+          const data = await res.json();
+          setLogs(data.logs);
+          setIsProcessing(data.processing);
+          if (!data.processing) {
+            if (logsInterval.current) clearInterval(logsInterval.current);
+            if (graphInterval.current) clearInterval(graphInterval.current);
+            toast({ title: 'Documentation Generated', description: `Check your email for results.` });
+          }
+        } catch (err) {
+          // network or parse error, ignore and retry
         }
-      } else {
-        clearInterval(intervalId);
-        setIsProcessing(false);
-        toast({
-          title: "Documentation Generated",
-          description: `Your documentation has been sent to ${email}`,
-        });
-      }
-    }, 1000);
+      };
+      logsInterval.current = window.setInterval(fetchLogs, 1000);
+      // Start polling graph HTML
+      const fetchGraph = async () => {
+        try {
+          const res = await fetch('/api/graph');
+          if (!res.ok) return;
+          const html = await res.text();
+          setGraphHtml(html);
+        } catch (err) {
+          // ignore and retry
+        }
+      };
+      graphInterval.current = window.setInterval(fetchGraph, 1000);
+    } catch (err) {
+      console.error(err);
+      toast({ title: 'Upload Failed', description: 'Please try again.' });
+      setIsProcessing(false);
+    }
   };
+
+  // Clear intervals on unmount
+  useEffect(() => () => {
+    if (logsInterval.current) clearInterval(logsInterval.current);
+    if (graphInterval.current) clearInterval(graphInterval.current);
+  }, []);
 
   return (
     <div className="flex flex-col min-h-screen">
